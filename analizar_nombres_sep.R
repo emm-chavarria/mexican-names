@@ -1,4 +1,5 @@
 library(plyr)
+library(tidyr)
 
 removibles <- c("NULL","","-",".","0","/","\\","_")
 
@@ -6,7 +7,7 @@ sep <- read.csv("data/sep/PERSONAL_FEDERALIZADO_2T2012.txt",sep="|")
 sep <- sep[!duplicated(sep$CURP),] 
 sep$GENERO <- substring(sep[,"CURP"],11,11)
 sep$ANONAC <- 1900 + as.numeric(substring(sep[,"CURP"],5,6))
-sep$EDAD <- 2012 - sep$ANONAC #Ano de actualizacion del archivo de origen.
+sep$EDAD <- 2012 - sep$ANONAC #Año de actualizacion del archivo de origen.
 
 ap1 <- count(sep,"PRIMERAPELLIDO")
 ap1 <- ap1[ap1$freq >= 5,]
@@ -21,27 +22,39 @@ colnames(apsep) <- c("apellido","frec_pri","frec_seg")
 apsep[is.na(apsep)] <- 0
 apsep <- apsep[order(apsep$frec_pri,decreasing = T),]
 
-muj <- count(sep[sep$GENERO=="M",],"NOMBRESTRABAJADOR")
-muj <- muj[muj$freq >=5,]
-muj <- muj[!(muj$NOMBRESTRABAJADOR %in% removibles),]
-colnames(muj) <- c("nombre","frec")
-muj$edad_media <- apply(muj,1,
-                        function(x) round(
-                          mean(sep$EDAD[sep$NOMBRESTRABAJADOR==x["nombre"]],na.rm=T),
-                          digits = 2))
-muj <- muj[order(muj$frec,decreasing = T),]
+##Consider First and Second name frequencies by separate (i.e. "Primer_nombre" and "Seg_nombre")
+sep2 = sep[c("NOMBRESTRABAJADOR", "GENERO", "EDAD")]
+nombres = separate(sep2, NOMBRESTRABAJADOR, into=c("Primer_nombre", "Seg_nombre"),  sep="\\s", extra="merge")	#Splits first and second name
+nombres$Primer_nombre = gsub("\\bMA.\\b|\\bMA\\b", "MARIA", nombres$Primer_nombre) #Replaces abbreviations of "MARIA"
 
+##Counts "Primer_nombre" for women
+mujeres = count(nombres[nombres$GENERO=="M",],"Primer_nombre")
+mujeres <- mujeres[mujeres$freq >=5,]
+mujeres <- mujeres[!(mujeres$Primer_nombre %in% removibles),]
+mujeres <- mujeres[order(mujeres$freq,decreasing = T),]
 
-hom <- count(sep[sep$GENERO=="H",],"NOMBRESTRABAJADOR")
-hom <- hom[hom$freq >=5,]
-hom <- hom[!(hom$NOMBRESTRABAJADOR %in% removibles),]
-colnames(hom) <- c("nombre","frec")
-hom$edad_media <- apply(hom,1,
-                        function(x) round(
-                          mean(sep$EDAD[sep$NOMBRESTRABAJADOR==x["nombre"]],na.rm=T),
-                          digits = 2))
-hom <- hom[order(hom$frec,decreasing = T),]
+##Counts "Primer_nombre" for men
+hombres = count(nombres[nombres$GENERO=="H",],"Primer_nombre")
+hombres <- hombres[hombres$freq >=5,]
+hombres <- hombres[!(hombres$Primer_nombre %in% removibles),]
+hombres <- hombres[order(hombres$freq,decreasing = T),]
 
-write.csv(muj,"data/sep/mujeres.csv",row.names = F,quote = F)
-write.csv(hom,"data/sep/hombres.csv",row.names = F,quote = F)
-write.csv(apsep,"data/sep/apellidos.csv",row.names = F,quote = F)
+##Counts "Seg_nombre" for women
+mujeres2 = count(nombres[nombres$GENERO=="M",],"Seg_nombre")
+mujeres2 <- mujeres2[mujeres2$freq >=5,]
+mujeres2 <- mujeres2[!(mujeres2$Seg_nombre %in% removibles),]
+mujeres2 = na.omit(mujeres2) #Ignores individuals with only "Primer_nombre"
+mujeres2 <- mujeres2[order(mujeres2$freq,decreasing = T),]
+
+##Counts "Seg_nombre" for men
+hombres2 = count(nombres[nombres$GENERO=="H",],"Seg_nombre")
+hombres2 <- hombres2[hombres2$freq >=5,]
+hombres2 <- hombres2[!(hombres2$Seg_nombre %in% removibles),]
+hombres2 = na.omit(hombres2) #Ignores individuals with only "Primer_nombre"
+hombres2 <- hombres2[order(hombres2$freq,decreasing = T),]
+
+##Writes output as txt
+write.table(mujeres,"data/sep/mujeres_1erNombre.txt",row.names = F,quote = F, sep=";")
+write.table(mujeres2,"data/sep/mujeres_2doNombre.txt",row.names = F,quote = F, sep=";")
+write.table(hombres,"data/sep/hombres_2doNombre.txt",row.names = F,quote = F, sep=";")
+write.table(hombres2,"data/sep/hombres2_2doNombre.txt",row.names = F,quote = F, sep=";")
